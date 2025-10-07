@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package dfs;
+
+service DataNodeService {
+  rpc PutChunk(stream PutChunkRequest) returns (PutChunkResponse);
+  rpc GetChunk(GetChunkRequest) returns (stream GetChunkResponse);
+  rpc DeleteChunk(DeleteChunkRequest) returns (DeleteChunkResponse);
+}
+
+message PutChunkRequest {
+  string chunk_id = 1;
+  bytes data = 2;
+}
+
+message PutChunkResponse {
+  bool success = 1;
+}
+
+message GetChunkRequest {
+  string chunk_id = 1;
+}
+
+message GetChunkResponse {
+  bytes data = 1;
+}
+
+message DeleteChunkRequest {
+  string chunk_id = 1;
+}
+
+message DeleteChunkResponse {
+  bool success = 1;
+  string error_message = 2;
+}

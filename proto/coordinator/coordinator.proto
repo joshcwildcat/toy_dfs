@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package dfs;
+
+service CoordinatorService {
+  rpc PutFile(stream PutFileRequest) returns (PutFileResponse);
+  rpc GetFile(GetFileRequest) returns (stream GetFileResponse);
+  rpc LookupFile(LookupFileRequest) returns (LookupFileResponse);
+  rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+}
+
+message PutFileRequest {
+  string filename = 1;
+  bytes data = 2;
+}
+
+message PutFileResponse {
+  bool success = 1;
+}
+
+message GetFileRequest {
+  string filename = 1;
+}
+
+message GetFileResponse {
+  bytes data = 1;
+}
+
+message LookupFileRequest {
+  string path = 1;
+}
+
+message LookupFileResponse {
+  repeated string chunk_ids = 1;
+  repeated string locations = 2;
+}
+
+message DeleteFileRequest {
+  string path = 1;
+}
+
+message DeleteFileResponse {
+  bool success = 1;
+}
