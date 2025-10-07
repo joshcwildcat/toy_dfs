@@ -1,10 +1,96 @@
+# .clang-format
+# Comprehensive version of Google C++ style, explicitly listed for clarity.
+
 BasedOnStyle: Google
-IndentWidth: 4
-ColumnLimit: 100
-DerivePointerAlignment: false
-PointerAlignment: Left
-AllowShortFunctionsOnASingleLine: Empty
+Language: Cpp
+
+# General formatting
+IndentWidth: 2                # 2 spaces per indentation level
+TabWidth: 2                   # Tab width is also 2 (for display)
+UseTab: Never                 # Always use spaces, never tabs
+ContinuationIndentWidth: 4    # Indent continuation lines by 4 spaces
+ColumnLimit: 80               # Max line length
+AccessModifierOffset: -2      # Align 'public:', 'private:' 2 spaces left of class body
+
+# Braces and blocks
+BreakBeforeBraces: Attach     # K&R style braces
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortCaseLabelsOnASingleLine: false
+
+# Spaces
 SpacesBeforeTrailingComments: 2
-SortIncludes: true
-IncludeBlocks: Regroup
 SpaceAfterCStyleCast: false
+SpaceAfterLogicalNot: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInContainerLiterals: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Includes
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex: '^<ext/.*\.h>'
+    Priority: 2
+  - Regex: '^<.*\.h>'
+    Priority: 1
+  - Regex: '^".*\.h"'
+    Priority: 0
+SortIncludes: true
+IncludeIsMainRegex: '([-_](test|unittest))?$'
+
+# Indentation rules
+IndentCaseLabels: true
+IndentGotoLabels: false
+IndentPPDirectives: AfterHash
+NamespaceIndentation: None
+AlignAfterOpenBracket: Align
+AlignOperands: true
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignConsecutiveMacros: false
+AlignEscapedNewlines: Right
+
+# Pointers and references
+PointerAlignment: Left       # int* ptr; not int *ptr;
+ReferenceAlignment: Left     # int& ref;
+
+# Comments
+ReflowComments: true
+BreakBeforeTernaryOperators: true
+BreakStringLiterals: true
+
+# Function declarations
+BinPackParameters: true
+BinPackArguments: true
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+
+# Lambdas
+AllowShortLambdasOnASingleLine: Inline
+LambdaBodyIndentation: Signature
+
+# Constructors / initializers
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+ConstructorInitializerIndentWidth: 4
+
+# Template and macros
+IndentWrappedFunctionNames: false
+AllowAllParametersOfDeclarationOnNextLine: true
+Cpp11BracedListStyle: true
+
+# Misc
+KeepEmptyLinesAtTheStartOfBlocks: false
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakString: 1000
+PenaltyBreakFirstLessLess: 120
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 60
+DerivePointerAlignment: false
+SortUsingDeclarations: true
