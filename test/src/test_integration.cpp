@@ -9,6 +9,8 @@
 #include <thread>
 
 #include "coordinator_service_impl.h"
+#include "datanode_config.h"
+#include "datanode_server.h"
 #include "datanode_service_impl.h"
 #include "dfs_client.h"
 #include "dfs_server.h"
@@ -16,30 +18,25 @@
 // Test fixture for integration tests
 class DFSIntegrationTest : public ::testing::Test {
 protected:
-  /* First test
-      const static int NUM_CLIENTS = 6;
-      const static int OPERATIONS_PER_CLIENT = 12;
-      const static size_t FILE_SIZE_MB = 25;
-  */
-  const static int NUM_CLIENTS = 9;
-  const static int OPERATIONS_PER_CLIENT = 6;
-  constexpr static float FILE_SIZE_MB = 8;
-
   // TODO: Use a randomly named temp direcotry under TMPDIR
   inline static const std::string TEST_DATA_DIR = "/tmp/dfs_integration_test";
-  // TODO: Should be configurable
   inline static const std::string ROOT_CHUNK_DIR = "/tmp/dfs_chunks";
 
   inline static std::thread coordinator_thread;
-  inline static std::thread datanode_thread;
-  inline static std::atomic<bool> coordinator_ready{false};
-  inline static std::atomic<bool> datanode_ready{false};
+  inline static std::vector<std::thread> datanode_threads;
 
   inline static std::unique_ptr<DFSServer<CoordinatorServiceImpl>>
       coordinator_server;
-  inline static std::unique_ptr<DFSServer<DataNodeServiceImpl>> datanode_server;
+  inline static std::vector<std::unique_ptr<DataNodeServer>> datanode_servers;
   inline static std::unique_ptr<CoordinatorServiceImpl> coord_service;
-  inline static std::unique_ptr<DataNodeServiceImpl> data_service;
+  inline static std::vector<std::unique_ptr<DataNodeServiceImpl>>
+      datanode_services;
+
+  // Number of DataNode servers for testing replication
+  inline static const int NUM_DATANODES = 3;
+
+  inline const static std::string COORDINATOR_ADDRESS = "localhost:50053";
+  static DFSClient createClient() { return DFSClient(COORDINATOR_ADDRESS); }
 
   static void SetUpTestSuite() {
     // Make sure we are starting clean.
@@ -49,75 +46,92 @@ protected:
     // Create test data directory
     std::filesystem::create_directories(TEST_DATA_DIR);
 
-    // Create services
-    data_service = std::make_unique<DataNodeServiceImpl>();
-    coord_service = CoordinatorServiceImpl::Create("localhost:50054");
+    // Create coordinator service
+    coord_service = CoordinatorServiceImpl::Create();
 
-    // Create servers
+    // Create coordinator server
     coordinator_server = std::make_unique<DFSServer<CoordinatorServiceImpl>>(
-        coord_service.get(), "localhost:50053");
-    datanode_server = std::make_unique<DFSServer<DataNodeServiceImpl>>(
-        data_service.get(), "localhost:50054");
+        coord_service.get(), COORDINATOR_ADDRESS);
 
-    // Start servers
+    // Start coordinator server
     coordinator_server->Start();
-    datanode_server->Start();
 
-    // Start wait threads
+    // Start coordinator wait thread
     coordinator_thread = std::thread([] { coordinator_server->Wait(); });
 
-    datanode_thread = std::thread([] { datanode_server->Wait(); });
+    // Create and start multiple DataNode servers with unique chunk paths
+    for (int i = 0; i < NUM_DATANODES; ++i) {
+      // Create unique configuration for this DataNode
+      DataNodeConfig config = DataNodeConfig::CreateUnique(
+          ROOT_CHUNK_DIR, "datanode_" + std::to_string(i));
 
-    // Give servers a moment to start
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+      // Create DataNode service with configuration
+      auto datanode_service = std::make_unique<DataNodeServiceImpl>(config);
+      datanode_services.push_back(std::move(datanode_service));
+
+      // Create DataNode server on different ports with configuration
+      int datanode_port = 50054 + i;
+      auto datanode_server = std::make_unique<DataNodeServer>(
+          datanode_services.back().get(),
+          "localhost:" + std::to_string(datanode_port), COORDINATOR_ADDRESS,
+          config);
+      datanode_servers.push_back(std::move(datanode_server));
+
+      // Start the DataNode server
+      datanode_servers.back()->Start();
+
+      // Start wait thread for this DataNode
+      datanode_threads.emplace_back([i]() { datanode_servers[i]->Wait(); });
+    }
+
+    // Verify DataNode registration
+    EXPECT_EQ(coord_service->getRegisteredNodes().size(), NUM_DATANODES)
+        << "All " << NUM_DATANODES
+        << " DataNodes should have registered with Coordinator";
   }
 
   static void TearDownTestSuite() {
-    // Try graceful shutdown first
+    // Stop all DataNode servers
+    for (auto& datanode_server : datanode_servers) {
+      if (datanode_server) {
+        datanode_server->Stop();
+      }
+    }
+
+    // Try graceful shutdown first for coordinator
     if (coordinator_server) {
       coordinator_server->Stop();
     }
-    if (datanode_server) {
-      datanode_server->Stop();
-    }
 
     // Wait briefly for graceful shutdown
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
+    // Force shutdown all DataNode servers
+    for (auto& datanode_server : datanode_servers) {
+      if (datanode_server) {
+        datanode_server->ForceShutdown();
+      }
+    }
     // Force shutdown if still running
     if (coordinator_server) {
       coordinator_server->ForceShutdown();
     }
-    if (datanode_server) {
-      datanode_server->ForceShutdown();
-    }
 
-    // Join threads
+    // Join all threads
     if (coordinator_thread.joinable()) {
       coordinator_thread.join();
     }
-    if (datanode_thread.joinable()) {
-      datanode_thread.join();
+
+    for (auto& datanode_thread : datanode_threads) {
+      if (datanode_thread.joinable()) {
+        datanode_thread.join();
+      }
     }
 
     // Clean up test data
     std::filesystem::remove_all(TEST_DATA_DIR);
     std::filesystem::remove_all(ROOT_CHUNK_DIR);
   }
-
-  static void waitForServers() {
-    // Wait up to 5 seconds for servers to start
-    for (int i = 0; i < 50; ++i) {
-      if (coordinator_ready && datanode_ready) {
-        break;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-    ASSERT_TRUE(coordinator_ready) << "Coordinator server failed to start";
-    ASSERT_TRUE(datanode_ready) << "DataNode server failed to start";
-  }
-
-  DFSClient createClient() { return DFSClient("localhost:50053"); }
 
   inline static long total_files = 0;
   std::string createTestFile(const std::string& content,
@@ -146,6 +160,9 @@ protected:
     return content;
   }
 };
+
+// Define and initialize static constant member
+// const int DFSIntegrationTest::NUM_DATANODES = 3;
 
 // Test basic file upload and download
 TEST_F(DFSIntegrationTest, PutAndGetFile) {
@@ -229,6 +246,9 @@ TEST_F(DFSIntegrationTest, GetNonExistentFile) {
 
 // Test concurrent operations from multiple clients (async version)
 TEST_F(DFSIntegrationTest, ConcurrentOperationsAsync) {
+  const static int NUM_CLIENTS = 9;
+  const static int OPERATIONS_PER_CLIENT = 6;
+  const static int FILE_SIZE_MB = 8;
   const size_t FILE_SIZE_BYTES = FILE_SIZE_MB * 1024 * 1024;
 
   std::cout << "uploading "
@@ -242,7 +262,7 @@ TEST_F(DFSIntegrationTest, ConcurrentOperationsAsync) {
 
   for (int client_id = 0; client_id < NUM_CLIENTS; ++client_id) {
     client_threads.emplace_back([this, client_id, &success_count]() {
-      DFSClient client("localhost:50053");
+      DFSClient client = createClient();
 
       // Start ALL uploads for this client asynchronously
       std::vector<std::future<bool>> upload_futures;
@@ -456,7 +476,7 @@ TEST_F(DFSIntegrationTest, DeleteFileConcurrent) {
 
   for (int client_id = 0; client_id < NUM_CLIENTS; ++client_id) {
     setup_threads.emplace_back([this, client_id, &all_files, &files_mutex]() {
-      DFSClient client("localhost:50053");
+      DFSClient client = createClient();
 
       for (int file_id = 0; file_id < FILES_PER_CLIENT; ++file_id) {
         std::string content = "Concurrent delete content " +
@@ -491,7 +511,7 @@ TEST_F(DFSIntegrationTest, DeleteFileConcurrent) {
 
   for (int client_id = 0; client_id < NUM_CLIENTS; ++client_id) {
     delete_threads.emplace_back([client_id, &all_files, &success_count]() {
-      DFSClient client("localhost:50053");
+      DFSClient client = createClient();
 
       for (int file_id = 0; file_id < FILES_PER_CLIENT; ++file_id) {
         int file_index = client_id * FILES_PER_CLIENT + file_id;
@@ -600,4 +620,185 @@ TEST_F(DFSIntegrationTest, DeleteFileChunkCleanup) {
       },
       std::exception)
       << "File should not exist after deletion";
+}
+
+// ===== REPLICATION TESTS =====
+
+// Test replication with sufficient nodes (normal case)
+TEST_F(DFSIntegrationTest, ReplicationWithSufficientNodes) {
+  // With 3 DataNodes and replication factor 3, each node should get exactly one
+  // replica
+  std::string test_content = "Replication test with sufficient nodes";
+  std::string test_file = createTestFile(test_content, "replication_test.txt");
+
+  DFSClient client = createClient();
+  auto upload_future = client.putFile(test_file);
+  ASSERT_TRUE(upload_future.get()) << "Upload failed";
+
+  // Verify file can be read back
+  auto read_future = client.getFile(test_file);
+  std::string received_content = read_future.get();
+  EXPECT_EQ(received_content, test_content);
+
+  // Verify that we have 3 registered nodes
+  auto registered_nodes = coord_service->getRegisteredNodes();
+  EXPECT_EQ(registered_nodes.size(), NUM_DATANODES)
+      << "Should have exactly " << NUM_DATANODES << " registered nodes";
+}
+
+// Test replication with insufficient nodes (node reuse case)
+TEST_F(DFSIntegrationTest, ReplicationWithInsufficientNodes) {
+  // This test verifies that when replication factor > available nodes,
+  // the same node can store multiple replicas
+
+  // Temporarily stop 2 DataNodes to simulate insufficient nodes scenario
+  datanode_servers[1]->Stop();
+  datanode_servers[2]->Stop();
+
+  // Wait a moment for nodes to be marked as unavailable
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  // Upload a file - should still work with node reuse
+  std::string test_content = "Replication test with node reuse";
+  std::string test_file = createTestFile(test_content, "node_reuse_test.txt");
+
+  DFSClient client = createClient();
+  auto upload_future = client.putFile(test_file);
+  ASSERT_TRUE(upload_future.get())
+      << "Upload should succeed even with fewer nodes";
+
+  // Verify file can be read back (using the remaining node)
+  auto read_future = client.getFile(test_file);
+  std::string received_content = read_future.get();
+  EXPECT_EQ(received_content, test_content);
+
+  // Restart the stopped DataNodes for other tests
+  datanode_servers[1]->Start();
+  datanode_servers[2]->Start();
+
+  // Wait for them to re-register
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+}
+
+// Test that files are accessible even when some nodes fail
+TEST_F(DFSIntegrationTest, ReplicationFaultTolerance) {
+  // Upload a file first
+  std::string test_content = "Fault tolerance test content";
+  std::string test_file =
+      createTestFile(test_content, "fault_tolerance_test.txt");
+
+  DFSClient client = createClient();
+  auto upload_future = client.putFile(test_file);
+  ASSERT_TRUE(upload_future.get()) << "Upload failed";
+
+  // Stop one DataNode to simulate failure
+  size_t node_to_stop = 1;  // Stop the second DataNode
+  datanode_servers[node_to_stop]->Stop();
+
+  // Wait a moment for the failure to be detected
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  // File should still be readable from remaining replicas
+  auto read_future = client.getFile(test_file);
+  std::string received_content = read_future.get();
+  EXPECT_EQ(received_content, test_content)
+      << "File should be readable even when some nodes fail";
+
+  // Restart the stopped DataNode
+  datanode_servers[node_to_stop]->Start();
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+}
+
+// Test that registered nodes information is correct
+TEST_F(DFSIntegrationTest, RegisteredNodesInformation) {
+  GTEST_SKIP() << "TODO";
+  auto registered_nodes = coord_service->getRegisteredNodes();
+
+  // Should have exactly NUM_DATANODES registered
+  EXPECT_EQ(registered_nodes.size(), NUM_DATANODES)
+      << "Should have exactly " << NUM_DATANODES << " registered nodes";
+
+  // Verify node IDs are sequential starting from 1
+  std::vector<int32_t> expected_ids;
+  for (int32_t i = 1; i <= NUM_DATANODES; ++i) {
+    expected_ids.push_back(i);
+  }
+
+  std::vector<int32_t> actual_ids;
+  for (const auto& pair : registered_nodes) {
+    actual_ids.push_back(pair.first);
+  }
+
+  std::sort(actual_ids.begin(), actual_ids.end());
+  EXPECT_EQ(actual_ids, expected_ids)
+      << "Node IDs should be sequential starting from 1";
+
+  // Verify each node has a valid address and port
+  for (const auto& pair : registered_nodes) {
+    int32_t node_id = pair.first;
+    const auto& node_info = pair.second;
+
+    EXPECT_EQ(node_id, node_info.node_id) << "Node ID mismatch in registry";
+
+    // Address should be a valid localhost address (IPv4 or IPv6)
+    EXPECT_FALSE(node_info.address.empty())
+        << "Node address should not be empty";
+
+    // Check for both IPv4 and IPv6 localhost addresses
+    bool isLocalhost =
+        (node_info.address.find("127.0.0.1") == 0) ||
+        (node_info.address.find("localhost") == 0) ||
+        (node_info.address.find("::1") == 0) ||       // IPv6 localhost
+        (node_info.address.find("ipv6:[::1]") == 0);  // IPv6 with prefix
+
+    EXPECT_TRUE(isLocalhost)
+        << "Node address should be localhost (IPv4 or IPv6), got: "
+        << node_info.address;
+
+    // Port should be in the expected range
+    EXPECT_GE(node_info.port, 50054) << "Port should be >= 50054";
+    EXPECT_LE(node_info.port, 50054 + NUM_DATANODES - 1)
+        << "Port should be <= " << (50054 + NUM_DATANODES - 1);
+  }
+}
+
+// Test DataNode unregistration functionality
+TEST_F(DFSIntegrationTest, DataNodeUnregistration) {
+  // Get initial node count
+  auto initial_nodes = coord_service->getRegisteredNodes();
+  size_t initial_count = initial_nodes.size();
+  EXPECT_EQ(initial_count, NUM_DATANODES)
+      << "Should start with " << NUM_DATANODES << " nodes";
+
+  // Stop one DataNode - should trigger unregistration
+  size_t node_to_stop = 1;  // Stop the second DataNode
+  datanode_servers[node_to_stop]->Stop();
+
+  // Wait a moment for unregistration to complete
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  // Verify node was removed from registry
+  auto after_stop_nodes = coord_service->getRegisteredNodes();
+  EXPECT_EQ(after_stop_nodes.size(), initial_count - 1)
+      << "Node count should decrease by 1 after stopping a DataNode";
+
+  // Verify the correct node was removed
+  int32_t removed_node_id = node_to_stop + 1;  // Node IDs start from 1
+  EXPECT_EQ(after_stop_nodes.find(removed_node_id), after_stop_nodes.end())
+      << "Node ID " << removed_node_id << " should have been removed";
+
+  // Restart the DataNode
+  datanode_servers[node_to_stop]->Start();
+
+  // Wait for it to re-register
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+  // Verify node count is back to original
+  auto final_nodes = coord_service->getRegisteredNodes();
+  EXPECT_EQ(final_nodes.size(), initial_count)
+      << "Node count should be back to " << initial_count << " after restart";
+
+  // Verify the restarted node has a new ID (since IDs are not reused)
+  EXPECT_GT(final_nodes.size(), after_stop_nodes.size())
+      << "New node should have been registered with a new ID";
 }

@@ -32,6 +32,8 @@ ToyDFS implements a classic distributed file system architecture with three main
 - **Chunk Storage**: Stores file chunks as local files
 - **Chunk Operations**: Provides read/write/delete operations for chunks
 - **Local Persistence**: Uses filesystem for chunk storage with configurable paths
+- **Auto-Registration**: Automatically registers with Coordinator during startup
+- **Replication Support**: Handles multiple replicas of chunks for fault tolerance
 
 ### DFS Client
 - **File Operations**: Provides put/get/delete file operations
@@ -238,6 +240,13 @@ class DataNodeServiceImpl : public DataNodeService::Service {
 - Tombstone-based deletion (prevents race conditions)
 - Background chunk cleanup
 - Graceful error handling
+
+### Data Replication
+- **Auto-Registration**: DataNodes automatically register with Coordinator on startup
+- **Node ID Assignment**: Coordinator assigns unique integer IDs to registered DataNodes
+- **Replication Factor**: Configurable replication level (default: 3 replicas per chunk)
+- **Round-Robin Placement**: Simple load distribution across registered DataNodes
+- **Address Discovery**: Coordinator extracts DataNode addresses from gRPC connections
 
 ### Modern C++ Design
 - RAII resource management

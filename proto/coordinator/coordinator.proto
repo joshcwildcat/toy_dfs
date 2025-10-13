@@ -5,8 +5,11 @@ package dfs;
 service CoordinatorService {
   rpc PutFile(stream PutFileRequest) returns (PutFileResponse);
   rpc GetFile(GetFileRequest) returns (stream GetFileResponse);
-  rpc LookupFile(LookupFileRequest) returns (LookupFileResponse);
   rpc DeleteFile(DeleteFileRequest) returns (DeleteFileResponse);
+
+  // DataNode registration
+  rpc RegisterDataNode(RegisterDataNodeRequest) returns (RegisterDataNodeResponse);
+  rpc UnregisterDataNode(UnregisterDataNodeRequest) returns (UnregisterDataNodeResponse);
 }
 
 message PutFileRequest {
@@ -26,19 +29,31 @@ message GetFileResponse {
   bytes data = 1;
 }
 
-message LookupFileRequest {
-  string path = 1;
-}
-
-message LookupFileResponse {
-  repeated string chunk_ids = 1;
-  repeated string locations = 2;
-}
-
 message DeleteFileRequest {
   string path = 1;
 }
 
 message DeleteFileResponse {
   bool success = 1;
+}
+
+// DataNode registration - simple integer IDs
+message RegisterDataNodeRequest {
+  int32 port = 1;
+}
+
+message RegisterDataNodeResponse {
+  bool success = 1;
+  int32 node_id = 2;
+  string error_message = 3;
+}
+
+// DataNode unregistration
+message UnregisterDataNodeRequest {
+  int32 node_id = 1;
+}
+
+message UnregisterDataNodeResponse {
+  bool success = 1;
+  string error_message = 2;
 }

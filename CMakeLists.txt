@@ -157,38 +157,6 @@ set_target_properties(dfs_proto PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
 
-# Create service libraries for testing
-add_library(coordinator_service_lib STATIC coordinator/src/coordinator_service_impl.cpp)
-target_link_libraries(coordinator_service_lib PUBLIC dfs_proto gRPC::grpc++ protobuf::libprotobuf)
-target_include_directories(coordinator_service_lib SYSTEM PUBLIC ${GENERATED_DIR})
-target_include_directories(coordinator_service_lib PUBLIC ${PROTO_SRC_DIR} ${TOYDFS_SOURCE_DIR}/coordinator/include)
-target_compile_options(coordinator_service_lib PRIVATE ${COMMON_COMPILE_FLAGS})
-set_target_properties(coordinator_service_lib PROPERTIES
-    CXX_EXTENSIONS OFF
-    POSITION_INDEPENDENT_CODE ON
-)
-
-add_library(test_datanode_service_lib STATIC datanode/src/datanode_service_impl.cpp datanode/src/datanode_utils.cpp)
-target_link_libraries(test_datanode_service_lib PUBLIC dfs_proto gRPC::grpc++ protobuf::libprotobuf)
-target_include_directories(test_datanode_service_lib SYSTEM PUBLIC ${GENERATED_DIR})
-target_include_directories(test_datanode_service_lib PUBLIC ${PROTO_SRC_DIR} ${TOYDFS_SOURCE_DIR}/datanode/include)
-target_compile_options(test_datanode_service_lib PRIVATE ${COMMON_COMPILE_FLAGS})
-set_target_properties(test_datanode_service_lib PROPERTIES
-    CXX_EXTENSIONS OFF
-    POSITION_INDEPENDENT_CODE ON
-)
-
-# DFSClient library
-add_library(dfs_client_lib STATIC client/src/dfs_client.cpp)
-target_link_libraries(dfs_client_lib PUBLIC dfs_proto gRPC::grpc++ protobuf::libprotobuf)
-target_include_directories(dfs_client_lib SYSTEM PUBLIC ${GENERATED_DIR})
-target_include_directories(dfs_client_lib PUBLIC ${PROTO_SRC_DIR} ${TOYDFS_SOURCE_DIR}/client/include)
-target_compile_options(dfs_client_lib PRIVATE ${COMMON_COMPILE_FLAGS})
-set_target_properties(dfs_client_lib PROPERTIES
-    CXX_EXTENSIONS OFF
-    POSITION_INDEPENDENT_CODE ON
-)
-
 # === Subdirectories ===
 add_subdirectory(server)
 add_subdirectory(coordinator)

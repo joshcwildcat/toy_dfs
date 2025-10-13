@@ -19,6 +19,11 @@ using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::Status;
 
+// Constructor with configuration
+DataNodeServiceImpl::DataNodeServiceImpl(const DataNodeConfig& config)
+    : config_(config) {
+}
+
 Status DataNodeServiceImpl::PutChunk(ServerContext* context,
                                      ServerReader<PutChunkRequest>* reader,
                                      PutChunkResponse* response) {
@@ -29,7 +34,7 @@ Status DataNodeServiceImpl::PutChunk(ServerContext* context,
   while (reader->Read(&req)) {
     if (first) {
       chunk_id = req.chunk_id();
-      std::string file_path = get_chunk_path(chunk_id);
+      std::string file_path = get_chunk_path(chunk_id, config_);
       file.open(file_path, std::ios::binary);
       if (!file) {
         return Status(grpc::StatusCode::INTERNAL, "Failed to open file");
@@ -48,7 +53,7 @@ Status
 DataNodeServiceImpl::GetChunk(ServerContext* context,
                               const GetChunkRequest* request,
                               grpc::ServerWriter<GetChunkResponse>* writer) {
-  std::string file_path = get_chunk_path(request->chunk_id());
+  std::string file_path = get_chunk_path(request->chunk_id(), config_);
   std::ifstream file(file_path, std::ios::binary);
   if (!file) {
     return Status(grpc::StatusCode::NOT_FOUND, "Chunk not found");
@@ -71,7 +76,7 @@ DataNodeServiceImpl::GetChunk(ServerContext* context,
 Status DataNodeServiceImpl::DeleteChunk(ServerContext* context,
                                         const DeleteChunkRequest* request,
                                         DeleteChunkResponse* response) {
-  std::string file_path = get_chunk_path(request->chunk_id());
+  std::string file_path = get_chunk_path(request->chunk_id(), config_);
   if (std::remove(file_path.c_str()) == 0) {
     response->set_success(true);
     response->set_error_message("");

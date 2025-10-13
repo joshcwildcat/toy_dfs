@@ -7,6 +7,7 @@
 
 #include "coordinator/coordinator.grpc.pb.h"
 #include "datanode/datanode.grpc.pb.h"
+#include "datanode_stub_wrapper.h"
 #include "metadata_store.h"
 
 using dfs::CoordinatorService;
@@ -15,8 +16,6 @@ using dfs::DeleteFileRequest;
 using dfs::DeleteFileResponse;
 using dfs::GetFileRequest;
 using dfs::GetFileResponse;
-using dfs::LookupFileRequest;
-using dfs::LookupFileResponse;
 using dfs::PutFileRequest;
 using dfs::PutFileResponse;
 using grpc::ServerContext;
@@ -24,15 +23,24 @@ using grpc::Status;
 
 class CoordinatorServiceImpl final : public CoordinatorService::Service {
 public:
+  // Node registry for replication support
+  struct DataNodeInfo {
+    int32_t node_id;
+    std::string address;  // Extracted from gRPC connection
+    int32_t port;
+  };
+
   MetadataStore store_;
-  std::unique_ptr<DataNodeService::StubInterface> datanode_stub_;
 
-  // Production factory method - creates stub internally
-  static std::unique_ptr<CoordinatorServiceImpl>
-  Create(const std::string& datanode_addr = "localhost:50052");
+  // Production factory method - creates concrete client factory
+  static std::unique_ptr<CoordinatorServiceImpl> Create();
 
-  // Test-friendly constructor - takes stub directly (dependency injection)
-  CoordinatorServiceImpl(std::unique_ptr<DataNodeService::StubInterface> stub);
+  // Constructor with dependency injection for testing
+  explicit CoordinatorServiceImpl(
+      std::unique_ptr<IDataNodeStubWrapperFactory> client_factory);
+
+  // Test-friendly constructor - uses concrete factory
+  CoordinatorServiceImpl();
 
   ~CoordinatorServiceImpl();  // Stop cleanup thread
 
@@ -43,15 +51,54 @@ public:
   Status GetFile(ServerContext* context, const GetFileRequest* request,
                  grpc::ServerWriter<GetFileResponse>* writer) override;
 
-  Status LookupFile(ServerContext* context, const LookupFileRequest* req,
-                    LookupFileResponse* resp) override;
-
   Status DeleteFile(ServerContext* context, const DeleteFileRequest* req,
                     DeleteFileResponse* resp) override;
 
+  // Replication support - DataNode registration
+  Status RegisterDataNode(ServerContext* context,
+                          const dfs::RegisterDataNodeRequest* req,
+                          dfs::RegisterDataNodeResponse* resp) override;
+  Status UnregisterDataNode(ServerContext* context,
+                            const dfs::UnregisterDataNodeRequest* req,
+                            dfs::UnregisterDataNodeResponse* resp) override;
+
+private:
+  Status readChunkWithFallback(const std::string& chunk_id,
+                               std::vector<char>* chunk_data,
+                               const std::vector<int32_t>& node_ids);
+  std::vector<int32_t> selectNodesForReplication(int32_t replication_factor);
+  std::vector<std::string>
+  resolveNodeAddresses(const std::vector<int32_t>& node_ids);
+  Status distributeChunkToNodes(const std::string& chunk_id,
+                                const std::string& chunk_data,
+                                const std::vector<int32_t>& node_ids);
+  Status distributeChunkToSingleNode(const std::string& chunk_id,
+                                     const std::string& chunk_data,
+                                     int32_t node_id);
+
 private:
   std::thread cleanup_thread_;
-  std::atomic<bool> running_{true};
+  std::atomic_flag running_{false};
+
+  // Node registry for replication
+  std::unordered_map<int32_t, DataNodeInfo> registered_nodes_;
+  std::atomic<int32_t> next_node_id_{1};
+
+  // Round-robin placement state for chunk distribution
+  std::atomic<uint32_t> next_node_index_{0};
+
+  // Factory for creating DataNode clients
+  std::unique_ptr<IDataNodeStubWrapperFactory> client_factory_;
 
   void cleanupWorker();  // Background cleanup thread function
+
+  // Helper function to extract client address from gRPC context
+  std::string extractClientAddress(ServerContext* context);
+
+public:
+  // Test accessors for private members
+  const std::unordered_map<int32_t, DataNodeInfo>& getRegisteredNodes() const {
+    return registered_nodes_;
+  }
+  int32_t getNextNodeIndex() const { return next_node_index_.load(); }
 };

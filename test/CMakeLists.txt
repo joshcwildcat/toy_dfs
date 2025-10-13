@@ -6,7 +6,9 @@ set(INCLUDES ${TOYDFS_SOURCE_DIR}/client/include
     ${TOYDFS_SOURCE_DIR}/coordinator/include
     ${TOYDFS_SOURCE_DIR}/datanode/include
     ${TOYDFS_SOURCE_DIR}/server/include
+    ${TOYDFS_SOURCE_DIR}/test/include
     ${TOYDFS_BINARY_DIR}
+    ${TOYDFS_SOURCE_DIR}
 )
 
 # Generated files should be treated as system headers to avoid gRPC warnings
@@ -63,6 +65,7 @@ target_link_libraries(test_coordinator_service
     gtest_main
     gmock
     coordinator_service_lib
+    datanode_client_lib
 )
 target_include_directories(test_coordinator_service SYSTEM PRIVATE ${GENERATED_INCLUDES})
 target_include_directories(test_coordinator_service PRIVATE ${INCLUDES})
@@ -73,7 +76,7 @@ add_executable(test_datanode_service src/test_datanode_service.cpp)
 target_link_libraries(test_datanode_service
     PRIVATE
     gtest_main
-    test_datanode_service_lib
+    datanode_service_lib
 )
 target_include_directories(test_datanode_service SYSTEM PRIVATE ${GENERATED_INCLUDES})
 target_include_directories(test_datanode_service PRIVATE ${INCLUDES})
@@ -84,7 +87,9 @@ target_link_libraries(test_integration
     PRIVATE
     gtest_main
     coordinator_service_lib
+    datanode_client_lib
     datanode_service_lib
+    datanode_server_lib
     dfs_client_lib
     dfs_proto
     gRPC::grpc++
@@ -97,17 +102,17 @@ target_compile_options(test_integration PRIVATE ${COMMON_COMPILE_FLAGS})
 
 include(GoogleTest)
 
-# Discover tests for all test executables (must be called after all test executables are defined)
-gtest_discover_tests(test_metadata_store PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
+# Discover tests for all test executables. Use PROCESSES so a new process isn't forked for each test method. 
+gtest_discover_tests(test_metadata_store  PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
 gtest_discover_tests(test_datanode_service PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
 gtest_discover_tests(test_coordinator_service PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
+add_test(NAME test_integration
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/test/run_test_and_parse.py
+            $<TARGET_FILE:test_integration>
+            ${CMAKE_BINARY_DIR}/test_integration.xml
+)
 
-# We have several tests here and using a test fixture. When using gtest_discover_tests
-# ctest will discover all the gtests and run them each in a seperate process causing it
-# to take longer
-#gtest_discover_tests(test_integration)
-add_test(NAME all_tests_test_integration COMMAND test_integration)
-set_tests_properties(all_tests_test_integration PROPERTIES
+set_tests_properties(test_integration PROPERTIES
     ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw"
 )
 

@@ -25,7 +25,7 @@ public:
   /**
    * Start the server
    */
-  void Start() {
+  virtual void Start() {
     ServerBuilder builder;
     builder.AddListeningPort(address_, grpc::InsecureServerCredentials());
     builder.RegisterService(service_);
@@ -35,7 +35,7 @@ public:
   /**
    * Stop the server gracefully
    */
-  void Stop() {
+  virtual void Stop() {
     if (server_) {
       server_->Shutdown();
     }
@@ -65,7 +65,12 @@ public:
    */
   bool IsRunning() const { return server_ != nullptr; }
 
-private:
+  /**
+   * Virtual destructor for proper inheritance
+   */
+  virtual ~DFSServer() = default;
+
+protected:
   ServiceType* service_;
   std::string address_;
   std::unique_ptr<Server> server_;

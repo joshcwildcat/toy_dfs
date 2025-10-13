@@ -11,7 +11,8 @@
 
 struct ChunkInfo {
   std::string chunk_id;
-  std::vector<std::string> locations;  // node IDs
+  std::vector<int32_t> node_ids;   // Integer node IDs for replication
+  int32_t replication_factor = 3;  // Desired replication level
 };
 
 struct FileMeta {

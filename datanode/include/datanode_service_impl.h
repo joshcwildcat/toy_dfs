@@ -4,6 +4,7 @@
 #include <string>
 
 #include "datanode/datanode.grpc.pb.h"
+#include "datanode_config.h"
 
 using dfs::DataNodeService;
 using dfs::DeleteChunkRequest;
@@ -16,17 +17,16 @@ using grpc::ServerContext;
 using grpc::ServerReader;
 using grpc::Status;
 
-// Helper functions
-void create_directories_recursively(const std::string& path);
-std::string get_chunk_path(const std::string& chunk_id);
-
 class DataNodeServiceImpl final : public DataNodeService::Service {
 public:
-  // Production factory method - creates stub internally
+  // Production factory method with optional configuration
   static std::unique_ptr<DataNodeServiceImpl>
-  Create(const std::string& datanode_addr = "localhost:50052") {
-    return std::make_unique<DataNodeServiceImpl>();
+  Create(const DataNodeConfig& config = DataNodeConfig{}) {
+    return std::make_unique<DataNodeServiceImpl>(config);
   }
+
+  // Constructor with configuration
+  explicit DataNodeServiceImpl(const DataNodeConfig& config);
 
   Status PutChunk(ServerContext* context, ServerReader<PutChunkRequest>* reader,
                   PutChunkResponse* response) override;
@@ -36,4 +36,7 @@ public:
 
   Status DeleteChunk(ServerContext* context, const DeleteChunkRequest* request,
                      DeleteChunkResponse* response) override;
+
+private:
+  DataNodeConfig config_;
 };

@@ -15,7 +15,8 @@ TEST_F(MetadataStoreTest, PutAndGetFile) {
   meta.chunk_size = 512;
   ChunkInfo chunk;
   chunk.chunk_id = "chunk_0";
-  chunk.locations = {"node1"};
+  chunk.node_ids = {1};  // Use integer node ID
+  chunk.replication_factor = 3;
   meta.chunks.push_back(chunk);
 
   store.putFile("test_file", meta);

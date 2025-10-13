@@ -21,17 +21,24 @@ void create_directories_recursively(const std::string& path) {
   }
 }
 
-std::string get_chunk_path(const std::string& chunk_id) {
+std::string get_chunk_path(const std::string& chunk_id,
+                           const DataNodeConfig& config) {
   size_t pos = chunk_id.find('_');
   if (pos == std::string::npos || chunk_id.substr(0, pos) != "chunk")
     return chunk_id;
   int N = std::stoi(chunk_id.substr(pos + 1));
-  std::string base_path = "/tmp/dfs_chunks";
-  // TODO Think about this
+
+  // Use configurable base path and create unique path if node_id is specified
+  std::string base_path = config.chunk_root_path;
+  if (!config.node_id.empty()) {
+    base_path = config.chunk_root_path + "/" + config.node_id;
+  }
+
+  // Create hierarchical directory structure
   int group_size = 1000;
   int level3 = N / (group_size * group_size);
   int level2 = (N / group_size) % group_size;
-  // int level1 = N % group_size;
+
   std::string dir_path =
       base_path + "/" + std::to_string(level3) + "/" + std::to_string(level2);
   try {
