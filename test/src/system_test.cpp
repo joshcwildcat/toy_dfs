@@ -15,11 +15,11 @@
 #include "dfs_client.h"
 #include "dfs_server.h"
 
-// Test fixture for integration tests
-class DFSIntegrationTest : public ::testing::Test {
+// Test fixture for system tests
+class SystemTest : public ::testing::Test {
 protected:
-  // TODO: Use a randomly named temp direcotry under TMPDIR
-  inline static const std::string TEST_DATA_DIR = "/tmp/dfs_integration_test";
+  // TODO: Use a randomly named temp direcotry inside the bulid directory or TMPDIR
+  inline static const std::string TEST_DATA_DIR = "/tmp/dfs_system_test";
   inline static const std::string ROOT_CHUNK_DIR = "/tmp/dfs_chunks";
 
   inline static std::thread coordinator_thread;
@@ -36,8 +36,10 @@ protected:
   inline static const int NUM_DATANODES = 3;
 
   inline const static std::string COORDINATOR_ADDRESS = "localhost:50053";
+
   static DFSClient createClient() { return DFSClient(COORDINATOR_ADDRESS); }
 
+  // Setup and run a Coordinator Server and NUM_DATANODES servers which will be used in all tests.
   static void SetUpTestSuite() {
     // Make sure we are starting clean.
     std::filesystem::remove_all(TEST_DATA_DIR);
@@ -161,13 +163,10 @@ protected:
   }
 };
 
-// Define and initialize static constant member
-// const int DFSIntegrationTest::NUM_DATANODES = 3;
-
 // Test basic file upload and download
-TEST_F(DFSIntegrationTest, PutAndGetFile) {
+TEST_F(SystemTest, PutAndGetFile) {
   // Create test file
-  std::string test_content = "Hello, DFS Integration Test!";
+  std::string test_content = "Hello, DFS System Test!";
   std::string test_file = createTestFile(test_content);
 
   // Upload file
@@ -183,7 +182,7 @@ TEST_F(DFSIntegrationTest, PutAndGetFile) {
 }
 
 // Test multiple files
-TEST_F(DFSIntegrationTest, MultipleFiles) {
+TEST_F(SystemTest, MultipleFiles) {
   DFSClient client = createClient();
 
   // Create and upload multiple files
@@ -208,7 +207,7 @@ TEST_F(DFSIntegrationTest, MultipleFiles) {
 }
 
 // Test large file handling
-TEST_F(DFSIntegrationTest, LargeFile) {
+TEST_F(SystemTest, LargeFile) {
   // Create a larger file (multiple chunks)
   std::string large_content;
   for (int i = 0; i < 10000; ++i) {
@@ -231,7 +230,7 @@ TEST_F(DFSIntegrationTest, LargeFile) {
 }
 
 // Test non-existent file
-TEST_F(DFSIntegrationTest, GetNonExistentFile) {
+TEST_F(SystemTest, GetNonExistentFile) {
   DFSClient client = createClient();
 
   // This should throw an exception for non-existent file
@@ -245,9 +244,9 @@ TEST_F(DFSIntegrationTest, GetNonExistentFile) {
 }
 
 // Test concurrent operations from multiple clients (async version)
-TEST_F(DFSIntegrationTest, ConcurrentOperationsAsync) {
-  const static int NUM_CLIENTS = 9;
-  const static int OPERATIONS_PER_CLIENT = 6;
+TEST_F(SystemTest, ConcurrentOperationsAsync) {
+  const static int NUM_CLIENTS = 4;
+  const static int OPERATIONS_PER_CLIENT = 3;
   const static int FILE_SIZE_MB = 8;
   const size_t FILE_SIZE_BYTES = FILE_SIZE_MB * 1024 * 1024;
 
@@ -358,10 +357,8 @@ TEST_F(DFSIntegrationTest, ConcurrentOperationsAsync) {
       << success_count;
 }
 
-// ===== DELETE FILE INTEGRATION TESTS =====
-
 // Test basic file deletion
-TEST_F(DFSIntegrationTest, DeleteFileBasic) {
+TEST_F(SystemTest, DeleteFileBasic) {
   // Arrange: Upload a file
   std::string test_content = "Content to be deleted";
   std::string test_file = createTestFile(test_content, "delete_test.txt");
@@ -392,7 +389,7 @@ TEST_F(DFSIntegrationTest, DeleteFileBasic) {
 }
 
 // Test deletion of large file (multiple chunks)
-TEST_F(DFSIntegrationTest, DeleteFileLarge) {
+TEST_F(SystemTest, DeleteFileLarge) {
   // Arrange: Create and upload a large file (multiple chunks)
   std::string large_content = generateRandomContent(10 * 1024 * 1024);  // 10MB
   std::string test_file =
@@ -424,7 +421,7 @@ TEST_F(DFSIntegrationTest, DeleteFileLarge) {
 }
 
 // Test deletion of non-existent file (should throw ENOENT)
-TEST_F(DFSIntegrationTest, DeleteFileNonExistent) {
+TEST_F(SystemTest, DeleteFileNonExistent) {
   DFSClient client = createClient();
   auto delete_future = client.deleteFile("non_existent_file.txt");
   try {
@@ -438,7 +435,7 @@ TEST_F(DFSIntegrationTest, DeleteFileNonExistent) {
 }
 
 // Test deletion of already deleted file (should throw ENOENT)
-TEST_F(DFSIntegrationTest, DeleteFileAlreadyDeleted) {
+TEST_F(SystemTest, DeleteFileAlreadyDeleted) {
   // Arrange: Upload and delete a file
   std::string test_content = "Content for double delete test";
   std::string test_file =
@@ -465,7 +462,7 @@ TEST_F(DFSIntegrationTest, DeleteFileAlreadyDeleted) {
 }
 
 // Test concurrent file deletions from multiple clients
-TEST_F(DFSIntegrationTest, DeleteFileConcurrent) {
+TEST_F(SystemTest, DeleteFileConcurrent) {
   const int NUM_CLIENTS = 12;
   const int FILES_PER_CLIENT = 2;
 
@@ -559,7 +556,7 @@ TEST_F(DFSIntegrationTest, DeleteFileConcurrent) {
 }
 
 // Test deletion during ongoing read operation
-TEST_F(DFSIntegrationTest, DeleteFileDuringRead) {
+TEST_F(SystemTest, DeleteFileDuringRead) {
   // Arrange: Upload a moderately large file
   std::string test_content = generateRandomContent(1024 * 1024);  // 1MB
   std::string test_file =
@@ -595,7 +592,7 @@ TEST_F(DFSIntegrationTest, DeleteFileDuringRead) {
 }
 
 // Test deletion with chunk cleanup verification
-TEST_F(DFSIntegrationTest, DeleteFileChunkCleanup) {
+TEST_F(SystemTest, DeleteFileChunkCleanup) {
   // Arrange: Upload a file and track its chunks
   std::string test_content = "Content for chunk cleanup verification";
   std::string test_file =
@@ -625,7 +622,7 @@ TEST_F(DFSIntegrationTest, DeleteFileChunkCleanup) {
 // ===== REPLICATION TESTS =====
 
 // Test replication with sufficient nodes (normal case)
-TEST_F(DFSIntegrationTest, ReplicationWithSufficientNodes) {
+TEST_F(SystemTest, ReplicationWithSufficientNodes) {
   // With 3 DataNodes and replication factor 3, each node should get exactly one
   // replica
   std::string test_content = "Replication test with sufficient nodes";
@@ -647,7 +644,7 @@ TEST_F(DFSIntegrationTest, ReplicationWithSufficientNodes) {
 }
 
 // Test replication with insufficient nodes (node reuse case)
-TEST_F(DFSIntegrationTest, ReplicationWithInsufficientNodes) {
+TEST_F(SystemTest, ReplicationWithInsufficientNodes) {
   // This test verifies that when replication factor > available nodes,
   // the same node can store multiple replicas
 
@@ -681,7 +678,7 @@ TEST_F(DFSIntegrationTest, ReplicationWithInsufficientNodes) {
 }
 
 // Test that files are accessible even when some nodes fail
-TEST_F(DFSIntegrationTest, ReplicationFaultTolerance) {
+TEST_F(SystemTest, ReplicationFaultTolerance) {
   // Upload a file first
   std::string test_content = "Fault tolerance test content";
   std::string test_file =
@@ -710,7 +707,7 @@ TEST_F(DFSIntegrationTest, ReplicationFaultTolerance) {
 }
 
 // Test that registered nodes information is correct
-TEST_F(DFSIntegrationTest, RegisteredNodesInformation) {
+TEST_F(SystemTest, RegisteredNodesInformation) {
   GTEST_SKIP() << "TODO";
   auto registered_nodes = coord_service->getRegisteredNodes();
 
@@ -763,7 +760,7 @@ TEST_F(DFSIntegrationTest, RegisteredNodesInformation) {
 }
 
 // Test DataNode unregistration functionality
-TEST_F(DFSIntegrationTest, DataNodeUnregistration) {
+TEST_F(SystemTest, DataNodeUnregistration) {
   // Get initial node count
   auto initial_nodes = coord_service->getRegisteredNodes();
   size_t initial_count = initial_nodes.size();

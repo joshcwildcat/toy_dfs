@@ -82,8 +82,8 @@ target_include_directories(test_datanode_service SYSTEM PRIVATE ${GENERATED_INCL
 target_include_directories(test_datanode_service PRIVATE ${INCLUDES})
 target_compile_options(test_datanode_service PRIVATE ${COMMON_COMPILE_FLAGS})
 
-add_executable(test_integration src/test_integration.cpp)
-target_link_libraries(test_integration
+add_executable(system_test src/system_test.cpp)
+target_link_libraries(system_test
     PRIVATE
     gtest_main
     coordinator_service_lib
@@ -95,10 +95,10 @@ target_link_libraries(test_integration
     gRPC::grpc++
     protobuf::libprotobuf
 )
-target_include_directories(test_integration SYSTEM PRIVATE ${GENERATED_INCLUDES})
-target_include_directories(test_integration PRIVATE ${INCLUDES})
-target_compile_definitions(test_integration PRIVATE TEST_BUILD)
-target_compile_options(test_integration PRIVATE ${COMMON_COMPILE_FLAGS})
+target_include_directories(system_test SYSTEM PRIVATE ${GENERATED_INCLUDES})
+target_include_directories(system_test PRIVATE ${INCLUDES})
+target_compile_definitions(system_test PRIVATE TEST_BUILD)
+target_compile_options(system_test PRIVATE ${COMMON_COMPILE_FLAGS})
 
 include(GoogleTest)
 
@@ -106,13 +106,18 @@ include(GoogleTest)
 gtest_discover_tests(test_metadata_store  PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
 gtest_discover_tests(test_datanode_service PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
 gtest_discover_tests(test_coordinator_service PROPERTIES ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw")
-add_test(NAME test_integration
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/test/run_test_and_parse.py
-            $<TARGET_FILE:test_integration>
-            ${CMAKE_BINARY_DIR}/test_integration.xml
-)
 
-set_tests_properties(test_integration PROPERTIES
+# We aren't using gtest_discover_tests for the system_test because CMAKE will run each test function in a seperate process.
+# The system_test will setup fixtures to run a coordinator and data_nodes for the duration of all the tests mimicing a more
+# real world seneario. However, this makes it appear from CMAKEs perspective that only one test was run. So we configure gtest
+# to report all tests passed, failed, and skipped in an xml file. run_test_and_parse.py simply parses the data and prints it out.
+# TODO: Configure to print output even when all tests pass.
+add_test(NAME system_test
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/test/run_test_and_parse.py
+            $<TARGET_FILE:system_test>
+            ${CMAKE_BINARY_DIR}/system_test.xml
+)
+set_tests_properties(system_test PROPERTIES
     ENVIRONMENT "LLVM_PROFILE_FILE=prof_%p_%h.profraw"
 )
 
@@ -151,7 +156,7 @@ if(ENABLE_COVERAGE)
         if(LLVM_PROFDATA_PATH AND LLVM_COV_PATH)
             add_custom_target(coverage
                 # Step 1: Ensure all test executables are built
-                DEPENDS test_metadata_store test_coordinator_service test_datanode_service test_integration
+                DEPENDS test_metadata_store test_coordinator_service test_datanode_service system_test
 
                 # Step 2: Run all tests to generate coverage data (.profraw files)
                 COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
@@ -180,7 +185,7 @@ endif()
 # === Test Utilities ===
 add_custom_target(check
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_metadata_store test_coordinator_service test_datanode_service test_integration
+    DEPENDS test_metadata_store test_coordinator_service test_datanode_service system_test
     COMMENT "Running all tests"
     VERBATIM
 )
