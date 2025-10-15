@@ -66,6 +66,9 @@ Status CoordinatorServiceImpl::PutFile(ServerContext* context,
     if (first) {
       filename = req.filename();
       first = false;
+      if (store_.getFile(filename)) {
+        return Status(grpc::StatusCode::ALREADY_EXISTS, "File exists");
+      }
     }
     file_data.insert(file_data.end(), req.data().begin(), req.data().end());
   }

@@ -70,10 +70,12 @@ void DFSClient::putFileSync(const std::string& filename) {
   grpc::Status status = writer->Finish();
   if (status.ok() && resp.success()) {
     // std::cout << "File uploaded successfully: " << filename << std::endl;
+  } else if (status.error_code() == grpc::StatusCode::ALREADY_EXISTS) {
+    // Filesystem error: file exists
+    throw std::system_error(EEXIST, std::system_category(), "File exists");
   } else {
-    throw std::runtime_error("PutFile failed: " + status.error_message());
+    throw std::runtime_error(status.error_message());
   }
-  // std::cerr << "Put file: " << filename << std::endl;
 }
 
 std::future<std::string> DFSClient::getFile(const std::string& filename) {
@@ -110,6 +112,10 @@ std::string DFSClient::getFileSync(const std::string& filename) {
   grpc::Status status = reader->Finish();
   if (status.ok()) {
     return content;
+  } else if (status.error_code() == grpc::StatusCode::NOT_FOUND) {
+    // Filesystem error: file not found
+    throw std::system_error(ENOENT, std::system_category(),
+                            "No such file or directory");
   } else {
     throw std::runtime_error(status.error_message());
   }

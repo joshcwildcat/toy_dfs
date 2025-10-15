@@ -87,16 +87,34 @@ int main(int argc, char* argv[]) {
 
   if (command == "put") {
     auto future = client.putFile(file_path);
-    bool success = future.get();
-    if (!success) {
-      std::cerr << "Upload failed" << std::endl;
-      return 1;
+    try {
+      bool success = future.get();
+      if (!success) {
+        std::cerr << "Upload failed" << std::endl;
+        return 1;
+      }
+    } catch (const std::system_error& e) {
+      if (e.code().value() == EEXIST) {
+        std::cerr << file_path << ": File exists" << std::endl;
+        return 1;
+      } else {
+        throw;
+      }
     }
     std::cout << "Uploaded " << file_path << std::endl;
   } else if (command == "get") {
     auto future = client.getFile(file_path);
-    std::string content = future.get();
-    std::cout.write(content.data(), content.size());
+    try {
+      std::string content = future.get();
+      std::cout.write(content.data(), content.size());
+    } catch (const std::system_error& e) {
+      if (e.code().value() == ENOENT) {
+        std::cerr << file_path << ": No such file or directory" << std::endl;
+        return 1;
+      } else {
+        throw;
+      }
+    }
   } else if (command == "delete") {
     auto future = client.deleteFile(file_path);
     try {
