@@ -19,7 +19,7 @@ ToyDFS is a distributed file system implementation in C++17. I used Cline using 
 ToyDFS implements a simple distributed file system architecture, with no directory support. It has three main components:
 
 ### Coordinator Service
-- **Metadata Management**: Tracks file-to-chunk mappings and chunk locations
+- **Metadata Management**: Tracks file-to-chunk mappings and chunk locations (currently single server, non-durable)
 - **Chunk Coordination**: Manages chunk placement and replication
 - **Garbage Collection**: Background cleanup of deleted file chunks using tombstone mechanism
 - **Fault Tolerance**: Data chunks are replicated to N datanodes. Failed chunk reads will attept other replicas.
@@ -90,16 +90,69 @@ cmake ..
 # Build all components and run all tests
 make check
 
+# Run just the system tests (see test/src/system_test.cpp)
+./bin/system_test
+
 # Start the system
-./coordinator/coordinator    # Terminal 1
-./datanode/datanode          # Terminal 2
+./bin/coordinator    # Terminal 1
+./bin/datanode          # Terminal 2
 
 # Use the client
-./client/client put local_file.txt remote_file.txt
+./bin/dfs_cli put local_file.txt remote_file.txt
 
 # Additional client operations
-./client/client get remote_file.txt downloaded_file.txt
-./client/client delete remote_file.txt
+./bin/dfs_cli get remote_file.txt downloaded_file.txt
+./bin/dfs_cli delete remote_file.txt
+
+ ./bin/coordinator --help
+Coordinator - Distributed File System Coordinator Server
+
+Usage: bin/coordinator [options]
+
+Options:
+  -l, --listen-address ADDR    Address to listen on (default: 0.0.0.0:50051)
+  -h, --help                   Show this help message
+
+Examples:
+  bin/coordinator                           # Use default address
+  bin/coordinator -l localhost:50051         # Specify listen address
+  bin/coordinator --listen-address 0.0.0.0:50051  # Specify listen address
+
+./bin/datanode --help
+DataNode - Distributed File System DataNode Server
+
+Usage: bin/datanode [options]
+
+Options:
+  -l, --listen-address ADDR    Address to listen on (default: 0.0.0.0:50052)
+  -c, --coordinator-address ADDR  Coordinator address to connect to (default: localhost:50051)
+  -h, --help                   Show this help message
+
+Examples:
+  bin/datanode                           # Use default addresses
+  bin/datanode -l 0.0.0.0:50052           # Specify listen address only
+  bin/datanode -c localhost:50051         # Specify coordinator address only
+  bin/datanode -l 0.0.0.0:50052 -c localhost:50051  # Specify both addresses
+
+./bin/dfs_cli --help
+DFS Client - Distributed File System Client
+
+Usage: ./bin/dfs_cli [options] <put|get|delete> <file_path>
+
+Commands:
+  put <file_path>     Upload a file to DFS
+  get <file_path>     Download a file from DFS
+  delete <file_path>  Delete a file from DFS
+
+Options:
+  -c, --coordinator-address ADDR  Coordinator address (default: localhost:50051)
+  -h, --help                      Show this help message
+
+Examples:
+  ./bin/dfs_cli put myfile.txt                    # Upload file (default coordinator)
+  ./bin/dfs_cli get myfile.txt                    # Download file (default coordinator)
+  ./bin/dfs_cli -c localhost:50051 put myfile.txt  # Upload with custom coordinator
+  ./bin/dfs_cli --coordinator-address coordinator.example.com:50051 get myfile.txt
 ```
 
 
@@ -156,6 +209,7 @@ std::future<bool> deletion = client.deleteFile("remote.txt");
 ### Chunk-Based Storage
 - Files automatically split into 1MB chunks
 - Chunks distributed across DataNodes with replication factor = 3
+- No data checksums currently, reading corrupted data is possible
 - Metadata tracked by Coordinator
 
 ### Asynchronous Operations
@@ -174,6 +228,9 @@ std::future<bool> deletion = client.deleteFile("remote.txt");
 - **Replication Factor**: Configurable replication level (default: 3 replicas per chunk)
 - **Round-Robin Placement**: Simple load distribution across registered DataNodes
 - **Address Discovery**: Coordinator extracts DataNode addresses from gRPC connections
+- Coordinator reads another replica when datanode unavailable.
+
+### Strongly Consistant: Successful write indicates all chunk replicas have been written to disk
 
 ## 🧪 Testing Strategy
 
