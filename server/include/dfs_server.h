@@ -28,6 +28,20 @@ public:
   virtual void Start() {
     ServerBuilder builder;
     builder.AddListeningPort(address_, grpc::InsecureServerCredentials());
+
+    size_t colon_pos = address_.rfind(':');
+    if (colon_pos != std::string::npos) {
+      auto host = address_.substr(0, colon_pos);
+      // On Mac OS and other BSD based kernels we need to explicitly bind to the
+      // loopback addresses
+      if (host == "0.0.0.0" || host == "[::]") {
+        auto colon_port = address_.substr(colon_pos);
+        builder.AddListeningPort("127.0.0.1" + colon_port,
+                                 grpc::InsecureServerCredentials());
+        builder.AddListeningPort("[::1]" + colon_port,
+                                 grpc::InsecureServerCredentials());
+      }
+    }
     builder.RegisterService(service_);
     server_ = builder.BuildAndStart();
   }
