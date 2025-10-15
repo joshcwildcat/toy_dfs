@@ -1,8 +1,8 @@
-add_executable(client
+add_executable(dfs_cli
     src/main.cpp
 )
 
-target_link_libraries(client
+target_link_libraries(dfs_cli
     PRIVATE
     dfs_client_lib
     dfs_proto
@@ -10,7 +10,7 @@ target_link_libraries(client
     protobuf::libprotobuf
 )
 
-target_include_directories(client PRIVATE
+target_include_directories(dfs_cli PRIVATE
     ${TOYDFS_SOURCE_DIR}/client/include
     ${TOYDFS_BINARY_DIR}
 )
