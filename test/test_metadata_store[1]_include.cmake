@@ -1,5 +1,0 @@
-if(EXISTS "/Users/joshc/projects/toy_dfs/test/test_metadata_store[1]_tests.cmake")
-  include("/Users/joshc/projects/toy_dfs/test/test_metadata_store[1]_tests.cmake")
-else()
-  add_test(test_metadata_store_NOT_BUILT test_metadata_store_NOT_BUILT)
-endif()

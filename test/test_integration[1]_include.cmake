@@ -1,5 +1,0 @@
-if(EXISTS "/Users/joshc/projects/toy_dfs/test/test_integration[1]_tests.cmake")
-  include("/Users/joshc/projects/toy_dfs/test/test_integration[1]_tests.cmake")
-else()
-  add_test(test_integration_NOT_BUILT test_integration_NOT_BUILT)
-endif()
