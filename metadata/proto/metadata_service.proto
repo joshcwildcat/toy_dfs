@@ -1,0 +1,114 @@
+syntax = "proto3";
+package dfs.metadata;
+
+import "metadata.proto";
+
+option go_package = "dfs/rpc";
+option java_package = "com.example.dfs.rpc";
+
+// ======================================================
+// Client-visible operations (POSIX-style)
+// ======================================================
+
+service MetadataService {
+  // Create file, directory, or symlink
+  rpc CreateInode(CreateInodeRequest) returns (CreateInodeResponse);
+
+  // Remove file or directory (non-recursive)
+  rpc DeleteInode(DeleteInodeRequest) returns (DeleteInodeResponse);
+
+  // Rename or move inode
+  rpc RenameInode(RenameInodeRequest) returns (RenameInodeResponse);
+
+  // Get stat info
+  rpc GetAttr(GetAttrRequest) returns (GetAttrResponse);
+
+  // Set file attributes (chmod, chown, utimes)
+  rpc SetAttr(SetAttrRequest) returns (SetAttrResponse);
+
+  // List directory contents
+  rpc ListDirectory(ListDirectoryRequest) returns (ListDirectoryResponse);
+
+  // Extended attributes
+  rpc GetXAttr(GetXAttrRequest) returns (GetXAttrResponse);
+  rpc SetXAttr(SetXAttrRequest) returns (SetXAttrResponse);
+  rpc ListXAttr(ListXAttrRequest) returns (ListXAttrResponse);
+
+  // For future: snapshots, quotas, leases
+  rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
+}
+
+// ======================================================
+// Requests
+// ======================================================
+
+message CreateInodeRequest {
+  dfs.metadata.InodeId parent_id = 1;
+  string name = 2;
+  dfs.metadata.FileType type = 3;
+  dfs.metadata.Permissions perms = 4;
+  string symlink_target = 5; // if type == SYMLINK
+}
+
+message DeleteInodeRequest {
+  dfs.metadata.InodeId id = 1;
+  bool recursive = 2;
+}
+
+message RenameInodeRequest {
+  dfs.metadata.InodeId src_id = 1;
+  dfs.metadata.InodeId dest_parent_id = 2;
+  string new_name = 3;
+}
+
+message GetAttrRequest {
+  dfs.metadata.InodeId id = 1;
+}
+
+message SetAttrRequest {
+  dfs.metadata.InodeId id = 1;
+  dfs.metadata.Permissions perms = 2;
+  uint64 modified_at = 3;
+  uint64 accessed_at = 4;
+}
+
+message ListDirectoryRequest {
+  dfs.metadata.InodeId dir_id = 1;
+  bool recursive = 2;
+  uint32 max_depth = 3;
+  uint32 offset = 4;
+  uint32 limit = 5;
+}
+
+// Extended attributes
+message GetXAttrRequest {
+  dfs.metadata.InodeId id = 1;
+  string key = 2;
+}
+message SetXAttrRequest {
+  dfs.metadata.InodeId id = 1;
+  string key = 2;
+  string value = 3;
+}
+message ListXAttrRequest {
+  dfs.metadata.InodeId id = 1;
+}
+
+// Snapshots / quotas (stubs for now)
+message SnapshotRequest { string name = 1; }
+message SnapshotResponse {}
+
+// ======================================================
+// Responses
+// ======================================================
+
+message CreateInodeResponse { dfs.metadata.Inode inode = 1; }
+message DeleteInodeResponse {}
+message RenameInodeResponse { dfs.metadata.Inode inode = 1; }
+message GetAttrResponse { dfs.metadata.Inode inode = 1; }
+message SetAttrResponse { dfs.metadata.Inode inode = 1; }
+message ListDirectoryResponse { dfs.metadata.DirectoryFragment fragment = 1; }
+
+message GetXAttrResponse { string value = 1; }
+message SetXAttrResponse {}
+message ListXAttrResponse { repeated dfs.metadata.XAttrEntry entries = 1; }

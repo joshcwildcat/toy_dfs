@@ -158,6 +158,7 @@ set_target_properties(dfs_proto PROPERTIES
 )
 
 # === Subdirectories ===
+add_subdirectory(metadata)
 add_subdirectory(server)
 add_subdirectory(coordinator)
 add_subdirectory(datanode)

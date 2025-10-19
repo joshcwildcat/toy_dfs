@@ -1,0 +1,98 @@
+syntax = "proto3";
+package dfs.metadata;
+
+// ======================================================
+// Fundamental types
+// ======================================================
+
+enum FileType {
+  FILE = 0;
+  DIRECTORY = 1;
+  SYMLINK = 2;
+  SPECIAL = 3; // e.g., FIFO, socket, device node
+}
+
+message InodeId {
+  uint64 id = 1;
+}
+
+// POSIX-style permission bits, like stat(2)
+message Permissions {
+  uint32 mode = 1;   // Unix permission bits (e.g. 0755)
+  uint32 uid  = 2;   // owner user ID
+  uint32 gid  = 3;   // owner group ID
+}
+
+// Basic metadata node (file or directory)
+message Inode {
+  InodeId id = 1;
+  string name = 2;
+  FileType type = 3;
+
+  uint64 size = 4;
+  uint64 created_at = 5;
+  uint64 modified_at = 6;
+  uint64 accessed_at = 7;
+
+  Permissions perms = 8;
+
+  repeated InodeId children = 9;     // directories only
+  repeated ChunkInfo chunks = 10;    // files only
+  InodeId parent = 11;
+  map<string, string> xattrs = 12;
+
+  bool is_deleted = 13;
+  bool is_hidden = 14;
+}
+
+// For partial directory listings or caching
+message DirectoryFragment {
+  InodeId root_id = 1;
+  repeated Inode entries = 2;
+}
+
+// For xattr listing
+message XAttrEntry {
+  string key = 1;
+  string value = 2;
+}
+
+// ======================================================
+// Chunk and replica metadata
+// ======================================================
+
+message ChunkId {
+  uint64 id = 1;
+}
+
+message DataNodeLocation {
+  string uuid = 1;           // Unique ID of the DataNode
+  string hostname = 2;       // DNS or IP
+  uint32 port = 3;           // gRPC service port
+}
+
+enum ChunkState {
+  CHUNK_NEW = 0;
+  CHUNK_AVAILABLE = 1;
+  CHUNK_UNDER_REPLICATION = 2;
+  CHUNK_CORRUPT = 3;
+  CHUNK_DELETED = 4;
+}
+
+message ChunkReplica {
+  DataNodeLocation datanode = 1;
+  string checksum = 2;       // Optional: per-replica checksum (CRC32 or stronger)
+  ChunkState state = 3;
+}
+
+message ChunkInfo {
+  ChunkId id = 1;
+  uint64 offset = 2;         // byte offset within file
+  uint64 length = 3;         // bytes in this chunk
+  uint32 replication = 4;    // desired replication factor
+  repeated ChunkReplica replicas = 5;
+  string checksum = 6;       // authoritative checksum
+  bool sealed = 7;           // true when no more writes (immutable)
+  string lease_holder = 8;   // client ID or session for active writer
+  uint64 version = 9;        // monotonic version for lease or mutation tracking
+}
