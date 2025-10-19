@@ -34,6 +34,8 @@ service MetadataService {
   rpc SetXAttr(SetXAttrRequest) returns (SetXAttrResponse);
   rpc ListXAttr(ListXAttrRequest) returns (ListXAttrResponse);
 
+  rpc RegisterChunk(RegisterChunkRequest) returns (RegisterChunkResponse);
+
   // For future: snapshots, quotas, leases
   rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
 }
@@ -93,6 +95,13 @@ message SetXAttrRequest {
 message ListXAttrRequest {
   dfs.metadata.InodeId id = 1;
 }
+
+message RegisterChunkRequest {
+  dfs.metadata.InodeId inode_id = 1;
+  dfs.metadata.ChunkInfo chunk = 2;
+}
+
+message RegisterChunkResponse {}
 
 // Snapshots / quotas (stubs for now)
 message SnapshotRequest { string name = 1; }
